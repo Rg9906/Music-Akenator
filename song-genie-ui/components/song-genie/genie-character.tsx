@@ -142,7 +142,7 @@ export function GenieCharacter({ state }: GenieCharacterProps) {
         }}
       >
         <Image
-          src="/genie-face.jpg"
+          src="/genie.png"
           alt="Mystical genie oracle with turban and glowing eyes"
           width={240}
           height={300}
