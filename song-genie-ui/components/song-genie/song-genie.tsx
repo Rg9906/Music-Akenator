@@ -13,7 +13,9 @@ import { GENIE_COMMENTS } from "./types"
 import type { GenieState } from "./types"
 
 
-const API_URL = "http://127.0.0.1:5000"
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5000"
+const MAX_QUESTIONS = 20
 
 
 function getRandomComment(type: keyof typeof GENIE_COMMENTS): string {
@@ -327,7 +329,7 @@ export function SongGenie() {
 
               questionNumber={questionNumber}
 
-              totalQuestions={20}
+              totalQuestions={MAX_QUESTIONS}
 
             />
 
