@@ -47,6 +47,7 @@ export function SongGenie() {
   const [gameStarted, setGameStarted] = useState(false)
 
   const [gameFinished, setGameFinished] = useState(false)
+  const [awaitingFeedback, setAwaitingFeedback] = useState(false)
 
 
   // Backend state
@@ -59,6 +60,11 @@ export function SongGenie() {
   const [currentValue, setCurrentValue] = useState("")
 
   const [questionNumber, setQuestionNumber] = useState(0)
+
+  // Learning state
+  const [showSongInput, setShowSongInput] = useState(false)
+  const [songInput, setSongInput] = useState("")
+  const [isLearning, setIsLearning] = useState(false)
 
 
   // Run once after mount
@@ -195,8 +201,17 @@ export function SongGenie() {
 
             setGameFinished(true)
 
+            setAwaitingFeedback(true)
+
+            // Format top candidates display
+            const topCandidatesList = data.top_songs
+              .slice(0, 3)
+              .map((item: any, index: number) => 
+                `${index + 1}. "${item.song.title}" (${Math.round(item.probability * 100)}%)`
+              ).join('\n')
+
             setGenieMessage(
-              `Your song is "${data.song.title}" (${Math.round(data.confidence * 100)}%)`
+              `My top guesses are:\n\n${topCandidatesList}\n\nWas #1 correct?`
             )
 
           }
@@ -212,6 +227,27 @@ export function SongGenie() {
             setQuestionNumber(prev => prev + 1)
 
             setGenieMessage(getRandomComment(answer))
+
+          }
+
+          else if (data.type === "learn") {
+
+            setGameFinished(true)
+
+            // Show top candidates and ask for song input
+            const topCandidatesList = data.top_songs
+              ? data.top_songs
+                  .slice(0, 3)
+                  .map((item: any, index: number) => 
+                    `${index + 1}. "${item.song.title}" (${Math.round(item.probability * 100)}%)`
+                  ).join('\n')
+              : "No candidates found"
+
+            setGenieMessage(
+              `I couldn't guess your song in 20 questions.\n\nMy best guesses were:\n\n${topCandidatesList}\n\nWhat song were you thinking of?`
+            )
+
+            setShowSongInput(true)
 
           }
 
@@ -261,7 +297,85 @@ export function SongGenie() {
     setGenieState("idle")
 
     setGenieMessage("Think of another song.")
+    setAwaitingFeedback(false)
+    setShowSongInput(false)
+    setSongInput("")
+    setIsLearning(false)
 
+  }
+
+
+  const handleFeedback = async (correct: boolean, correctSongTitle?: string) => {
+    if (!sessionId) return
+    
+    if (!correct) {
+      // Show song input for wrong guesses
+      setGenieMessage("What song were you actually thinking of?")
+      setShowSongInput(true)
+      return
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          correct,
+          correct_song_title: correctSongTitle,
+        }),
+      })
+      
+      const data = await res.json()
+      
+      // Show learning feedback if available
+      if (data.learning && data.learning.status === "learned") {
+        const summary = data.learning.analysis_summary
+        setGenieMessage(`Thanks! I learned from your answers. You got ${summary.confirms} questions right and had ${summary.mismatches} mismatches. Quality score: ${Math.round(data.learning.quality_score * 100)}%`)
+      }
+      
+    } catch {
+      // ignore feedback failures
+    } finally {
+      setAwaitingFeedback(false)
+    }
+  }
+
+  const handleSongSubmit = async () => {
+    if (!songInput.trim() || !sessionId) return
+    
+    setIsLearning(true)
+    try {
+      // Send feedback first with the correct song title (this triggers smart learning)
+      const feedbackRes = await fetch(`${API_URL}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          correct: false,
+          correct_song_title: songInput.trim(),
+        }),
+      })
+      
+      const feedbackData = await feedbackRes.json()
+      
+      if (feedbackData.learning && feedbackData.learning.status === "learned") {
+        const summary = feedbackData.learning.analysis_summary
+        setGenieMessage(`Smart learning complete! I analyzed your answers vs "${songInput}" and found ${summary.confirms} correct answers and ${summary.mismatches} mismatches. Quality: ${Math.round(feedbackData.learning.quality_score * 100)}%`)
+      } else if (feedbackData.learning && feedbackData.learning.status === "rejected") {
+        setGenieMessage(`I couldn't learn reliably from your answers (${feedbackData.learning.reason}), but thanks for playing!`)
+      } else {
+        setGenieMessage(`Thanks for playing with "${songInput}"!`)
+      }
+      
+    } catch {
+      setGenieMessage("Failed to analyze the learning, but thanks for playing!")
+    } finally {
+      setIsLearning(false)
+      setShowSongInput(false)
+      setSongInput("")
+      setAwaitingFeedback(false)
+    }
   }
 
 
@@ -347,7 +461,47 @@ export function SongGenie() {
         )}
 
 
-        {gameFinished && (
+        {gameFinished && awaitingFeedback && (
+          <div className="flex flex-wrap justify-center gap-3">
+            <button onClick={() => handleFeedback(true)}>
+              Yes, correct
+            </button>
+            <button onClick={() => handleFeedback(false)}>
+              No, wrong
+            </button>
+          </div>
+        )}
+
+        {showSongInput && (
+          <div className="flex flex-col gap-3 w-full max-w-sm">
+            <input
+              type="text"
+              value={songInput}
+              onChange={(e) => setSongInput(e.target.value)}
+              placeholder="Enter song name..."
+              className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              disabled={isLearning}
+              onKeyPress={(e) => e.key === 'Enter' && handleSongSubmit()}
+            />
+            <div className="flex gap-3">
+              <button 
+                onClick={handleSongSubmit}
+                disabled={isLearning || !songInput.trim()}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLearning ? "Learning..." : "Teach Me"}
+              </button>
+              <button 
+                onClick={handleRestart}
+                className="px-4 py-2 rounded-lg border border-gray-400 text-gray-300 hover:bg-gray-800"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        )}
+
+        {gameFinished && !awaitingFeedback && (
 
           <button onClick={handleRestart}>
 
