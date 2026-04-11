@@ -105,11 +105,11 @@ export function SongGenie() {
 
       setSessionId(data.session_id)
 
-      setCurrentQuestion(data.text)
+      setCurrentQuestion(data.question?.text || "Loading question...")
 
-      setCurrentFeature(data.feature)
+      setCurrentFeature(data.question?.feature || "")
 
-      setCurrentValue(data.value)
+      setCurrentValue(data.question?.value || "")
 
       setQuestionNumber(1)
 
@@ -218,11 +218,11 @@ export function SongGenie() {
 
           else if (data.type === "question") {
 
-            setCurrentQuestion(data.text)
+            setCurrentQuestion(data.question?.text || "Loading question...")
 
-            setCurrentFeature(data.feature)
+            setCurrentFeature(data.question?.feature || "")
 
-            setCurrentValue(data.value)
+            setCurrentValue(data.question?.value || "")
 
             setQuestionNumber(prev => prev + 1)
 
