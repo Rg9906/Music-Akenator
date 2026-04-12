@@ -4,14 +4,34 @@ import joblib
 import random
 
 # -------------------------
-# LOAD
+# LOAD FINAL DATA
 # -------------------------
-data = pd.read_csv("data.csv")
+data = pd.read_csv("dataset_final.csv")
+
+# -------------------------
+# FEATURE ENGINEERING (FINAL)
+# -------------------------
+def extract_features(df):
+    """Extract game features from final dataset"""
+    df = df.copy()
+    
+    # All features already engineered in dataset_final.csv
+    # Just ensure required features exist
+    required_features = ["genre", "mood", "tempo", "language"]
+    
+    for feature in required_features:
+        if feature not in df.columns:
+            raise ValueError(f"Missing required feature: {feature}")
+    
+    return df
+
+# Process data
+data = extract_features(data)
 
 model = joblib.load("xgb_model.pkl")
 model_columns = joblib.load("model_columns.pkl")
 
-features = ["genre", "mood", "tempo", "language", "era"]
+features = ["genre", "mood", "tempo", "language"]
 
 data_dict = {col: data[col].values for col in features}
 data_len = len(data)

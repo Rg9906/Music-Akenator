@@ -9,7 +9,7 @@ from sklearn.metrics import mean_squared_error
 # -------------------------
 # LOAD DATA
 # -------------------------
-data = pd.read_csv("training_data_v2.csv")
+data = pd.read_csv("training_data_clean_unique.csv")
 
 print("Dataset shape:", data.shape)
 

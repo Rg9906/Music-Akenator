@@ -3,11 +3,37 @@ import numpy as np
 from math import log2
 
 # -------------------------
-# LOAD DATA
+# LOAD FINAL DATA
 # -------------------------
-data = pd.read_csv("data.csv")
+data = pd.read_csv("dataset_final.csv")
 
-features = ["genre", "mood", "tempo", "language", "era"]
+# -------------------------
+# FEATURE ENGINEERING (FINAL)
+# -------------------------
+def extract_features(df):
+    """Extract game features from final dataset"""
+    df = df.copy()
+    
+    # All features already engineered in dataset_final.csv
+    # Just ensure required features exist
+    required_features = [
+        "genre", "mood", "tempo", "language", "popularity_level",
+        "duration_length", "danceability_level", "energy_level", "valence_level",
+        "acoustic_level", "instrumental_level", "liveness_level", "speechiness_level",
+        "loudness_level", "key_category", "mode_category", "time_signature_category",
+        "content_rating", "artist_type", "release_type", "track_version"
+    ]  # ALL 21 FEATURES
+    
+    for feature in required_features:
+        if feature not in df.columns:
+            raise ValueError(f"Missing required feature: {feature}")
+    
+    return df
+
+# Process data
+data = extract_features(data)
+
+features = ["genre", "mood", "tempo", "language"]  # era removed
 
 # -------------------------
 # ENTROPY
