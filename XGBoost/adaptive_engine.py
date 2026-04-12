@@ -13,6 +13,18 @@ def run_adaptive_engine(data, target_idx=None):
     """Run adaptive questioning engine with dynamic exploration-exploitation"""
     print("\n=== ADAPTIVE ENGINE TEST (Dynamic Exploration-Exploitation) ===")
     
+    # Import Gemini question framer
+    try:
+        from gemini_question_framer import GeminiQuestionFramer
+        # Use provided API key
+        API_KEY = "AIzaSyAB1SdXQyRsh0AzzBzmFvfAxCxpZgldtHY"
+        framer = GeminiQuestionFramer(API_KEY)
+        use_gemini = True
+        print("🤖 Gemini AI question framing enabled!")
+    except ImportError:
+        use_gemini = False
+        print("⚠️ Gemini framer not available - using standard questions")
+    
     # Skip ML model loading - use pure heuristic approach
     print("Using pure heuristic adaptive scoring (no ML model dependency)")
     
@@ -155,7 +167,13 @@ def run_adaptive_engine(data, target_idx=None):
                     best_f = f
                     best_v = v
         
-        print(f"\nQ{step+1}: Is {best_f} = {best_v}?")
+        # Use Gemini framer if available
+        if use_gemini and 'framer' in locals():
+            phase_text = phase.replace(" ", "_").upper()
+            framed_question = framer.frame_question(best_f, best_v, step+1, "adaptive")
+            print(f"\n{framed_question} {phase_text}")
+        else:
+            print(f"\nQ{step+1}: Is {best_f} = {best_v}?")
         
         # Simulated answer (same as ML engine)
         true_answer = data_dict[best_f][target_idx] == best_v

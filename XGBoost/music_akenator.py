@@ -539,6 +539,18 @@ def run_entropy_engine(data, target_idx=None):
     """Run entropy-based questioning engine"""
     print("\n=== ENTROPY ENGINE TEST ===")
     
+    # Import Gemini question framer
+    try:
+        from gemini_question_framer import GeminiQuestionFramer
+        # Use provided API key
+        API_KEY = "AIzaSyAB1SdXQyRsh0AzzBzmFvfAxCxpZgldtHY"
+        framer = GeminiQuestionFramer(API_KEY)
+        use_gemini = True
+        print("🤖 Gemini AI question framing enabled!")
+    except ImportError:
+        use_gemini = False
+        print("⚠️ Gemini framer not available - using standard questions")
+    
     features = [
         "genre", "mood", "tempo", "language", "popularity_level",
         "duration_length", "danceability_level", "energy_level", "valence_level",
@@ -609,7 +621,13 @@ def run_entropy_engine(data, target_idx=None):
         q = select_best_question(df, asked_categories, asked_pairs)
         
         f, v = q
-        print(f"\nQ{step+1}: Is {f} = {v}?")
+        
+        # Use Gemini framer if available
+        if use_gemini and 'framer' in locals():
+            framed_question = framer.frame_question(f, v, step+1, "entropy")
+            print(f"\n{framed_question}")
+        else:
+            print(f"\nQ{step+1}: Is {f} = {v}?")
         
         answer = "yes" if target_song[f] == v else "no"
         print("Answer:", answer)
@@ -627,6 +645,18 @@ def run_entropy_engine(data, target_idx=None):
 def run_ml_engine(data, target_idx=None):
     """Run ML-based questioning engine (FIXED VERSION - NO COLLAPSE)"""
     print("\n=== ML ENGINE TEST (FIXED) ===")
+    
+    # Import Gemini question framer
+    try:
+        from gemini_question_framer import GeminiQuestionFramer
+        # Use provided API key
+        API_KEY = "AIzaSyAB1SdXQyRsh0AzzBzmFvfAxCxpZgldtHY"
+        framer = GeminiQuestionFramer(API_KEY)
+        use_gemini = True
+        print("🤖 Gemini AI question framing enabled!")
+    except ImportError:
+        use_gemini = False
+        print("⚠️ Gemini framer not available - using standard questions")
     
     # Load model
     try:
@@ -759,7 +789,12 @@ def run_ml_engine(data, target_idx=None):
                     best_f = f
                     best_v = v
         
-        print(f"\nQ{step+1}: Is {best_f} = {best_v}?")
+        # Use Gemini framer if available
+        if use_gemini and 'framer' in locals():
+            framed_question = framer.frame_question(best_f, best_v, step+1, "ml")
+            print(f"\n{framed_question}")
+        else:
+            print(f"\nQ{step+1}: Is {best_f} = {best_v}?")
         
         # Simulated answer
         true_answer = data_dict[best_f][target_idx] == best_v
