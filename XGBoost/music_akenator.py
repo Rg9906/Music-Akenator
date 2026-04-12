@@ -535,7 +535,7 @@ def train_model(training_data):
 # GAME ENGINES
 # ================================
 
-def run_entropy_engine(data):
+def run_entropy_engine(data, target_idx=None):
     """Run entropy-based questioning engine"""
     print("\n=== ENTROPY ENGINE TEST ===")
     
@@ -556,72 +556,63 @@ def run_entropy_engine(data):
     
     def value_info_gain(df, feature, value):
         total_entropy = compute_entropy(df)
-        
         yes_subset = df[df[feature] == value]
         no_subset = df[df[feature] != value]
-        
         if len(yes_subset) == 0 or len(no_subset) == 0:
             return -1
-        
         p_yes = len(yes_subset) / len(df)
         p_no = len(no_subset) / len(df)
-        
-        new_entropy = (
-            p_yes * compute_entropy(yes_subset) +
-            p_no * compute_entropy(no_subset)
-        )
-        
+        new_entropy = p_yes * compute_entropy(yes_subset) + p_no * compute_entropy(no_subset)
         return total_entropy - new_entropy
     
     def select_best_question(df, asked_categories, asked_pairs):
         best_score = -1
         best_q = None
-        
         for f in features:
             values = df[f].unique()
-            
             for v in values:
                 if (f, v) in asked_pairs:
                     continue
-                
-                gain = value_info_gain(df, f, v)
-                
-                if gain <= 0:
-                    continue
-                
+                yes = len(df[df[f] == v])
+                no = len(df[df[f] != v])
+                remaining = len(df)
+                reduction = (remaining - min(yes, no)) / remaining
+                balance = min(yes, no) / remaining
+                confidence = 1 - abs(yes - no) / remaining  # Fixed: higher confidence = more balanced split
+                target_score = 0.5 * reduction + 0.3 * balance + 0.2 * confidence
                 penalty = 1 / (1 + asked_categories[f])
-                score = gain * penalty
-                
+                score = target_score * penalty
                 if score > best_score:
                     best_score = score
                     best_q = (f, v)
-        
+        if best_q is None:
+            best_q = (features[0], df[features[0]].iloc[0])
         return best_q
     
-    # Start game
     df = data.copy()
     asked_categories = {f: 0 for f in features}
     asked_pairs = set()
     
-    target_song = df.sample(1).iloc[0]
-    print(f"Target song: {target_song['track_name']}")
+    if target_idx is None:
+        target_song = df.sample(1).iloc[0]
+    else:
+        target_song = df.iloc[target_idx]
     
-    for step in range(10):
+    print("🎯 Target song (hidden):", target_song["track_name"])
+    
+    for step in range(30):
         if len(df) <= 3:
-            print(f"Final candidates: {df['track_name'].values}")
+            print("\n🎯 Final candidates:")
+            print(df["track_name"].values)
             break
         
         q = select_best_question(df, asked_categories, asked_pairs)
         
-        if q is None:
-            print("No more useful questions.")
-            break
-        
         f, v = q
-        answer = "yes" if target_song[f] == v else "no"
+        print(f"\nQ{step+1}: Is {f} = {v}?")
         
-        print(f"Q{step+1}: Is {f} = {v}? Answer: {answer}")
-        print(f"Remaining songs: {len(df)}")
+        answer = "yes" if target_song[f] == v else "no"
+        print("Answer:", answer)
         
         asked_pairs.add((f, v))
         asked_categories[f] += 1
@@ -630,10 +621,12 @@ def run_entropy_engine(data):
             df = df[df[f] == v]
         else:
             df = df[df[f] != v]
+        
+        print("Remaining songs:", len(df))
 
-def run_ml_engine(data):
-    """Run ML-based questioning engine"""
-    print("\n=== ML ENGINE TEST ===")
+def run_ml_engine(data, target_idx=None):
+    """Run ML-based questioning engine (FIXED VERSION - NO COLLAPSE)"""
+    print("\n=== ML ENGINE TEST (FIXED) ===")
     
     # Load model
     try:
@@ -650,15 +643,25 @@ def run_ml_engine(data):
         "loudness_level", "key_category", "mode_category", "time_signature_category",
         "content_rating", "artist_type", "release_type", "track_version"
     ]
+    
     data_dict = {col: data[col].values for col in features}
     data_len = len(data)
     
-    # Initialize log probabilities (numerically stable)
-    log_probs = np.zeros(data_len)
+    # ================================
+    # 🔥 PRIOR INITIALIZATION (NEW)
+    # ================================
+    
+    popularity = data["popularity"].values + 1
+    probs = popularity / popularity.sum()
+    log_probs = np.log(probs)
+    
     asked_questions = set()
     asked_categories = {f: 0 for f in features}
     
-    target_idx = random.choice(range(data_len))
+    # Use provided target_idx or random if not provided
+    if target_idx is None:
+        target_idx = random.choice(range(data_len))
+    
     print(f"Target song: {data.iloc[target_idx]['track_name']}")
     
     def build_input(feature, value, remaining, entropy, step, category_count):
@@ -675,24 +678,47 @@ def run_ml_engine(data):
         
         return pd.DataFrame([row])
     
-    # Main game loop
-    for step in range(20):
-        # Convert log probs to probs for display and calculations
+    # ================================
+    # MAIN LOOP
+    # ================================
+    
+    for step in range(30):
+        
+        # 🔥 STABLE NORMALIZATION
         probs = np.exp(log_probs - np.max(log_probs))
         probs = probs / np.sum(probs)
         
         max_prob = np.max(probs)
         
-        # Stop conditions: 20 questions OR 75% confidence
-        if max_prob > 0.75 or step >= 19:
-            if max_prob > 0.75:
-                print(f"CONFIDENT! Prediction: {data.iloc[np.argmax(probs)]['track_name']}")
-            else:
-                print(f"\n🎯 Stopped after {step+1} questions - {len(df)} songs remaining")
-                print("Top candidates:")
-                top_idx = np.argsort(probs)[-5:][::-1]
-                for idx in top_idx:
-                    print(f"  {data.iloc[idx]['track_name']}: {probs[idx]:.4f}")
+        # ENHANCED STOP CONDITIONS
+        top_idx = np.argsort(probs)[-5:][::-1]
+        sorted_probs = probs[top_idx]
+        
+        # Check for early stopping conditions
+        early_stop = False
+        stop_reason = ""
+        
+        # Condition 1: Confidence threshold
+        if max_prob > 0.4:
+            early_stop = True
+            stop_reason = "Confidence threshold (0.4) reached"
+        
+        # Condition 2: Big gap between first and second
+        elif len(sorted_probs) >= 2 and sorted_probs[0] > 2 * sorted_probs[1]:
+            early_stop = True
+            stop_reason = f"Big gap: {sorted_probs[0]:.3f} vs {sorted_probs[1]:.3f}"
+        
+        # Condition 3: Maximum questions
+        elif step >= 29:
+            early_stop = True
+            stop_reason = "Maximum questions (30) reached"
+        
+        if early_stop:
+            print(f"\n🎯 FINAL RESULT (Step {step+1}):")
+            print(f"Stop reason: {stop_reason}")
+            print(f"Max Probability: {max_prob:.4f}")
+            for idx in top_idx:
+                print(f"{data.iloc[idx]['track_name']} → {probs[idx]:.4f}")
             break
         
         remaining = np.sum(probs > 0.01)
@@ -702,13 +728,18 @@ def run_ml_engine(data):
         best_f = None
         best_v = None
         
-        # Question selection
+        # ================================
+        # QUESTION SELECTION
+        # ================================
+        
         for f in features:
             for v in set(data_dict[f]):
+                
                 if (f, v) in asked_questions:
                     continue
                 
                 mask = np.array([data_dict[f][i] == v for i in range(data_len)])
+                
                 prob_yes = np.sum(probs[mask])
                 prob_no = np.sum(probs[~mask])
                 
@@ -728,37 +759,43 @@ def run_ml_engine(data):
                     best_f = f
                     best_v = v
         
-        print(f"Q{step+1}: Is {best_f} = {best_v}?")
+        print(f"\nQ{step+1}: Is {best_f} = {best_v}?")
         
         # Simulated answer
         true_answer = data_dict[best_f][target_idx] == best_v
-        answer = true_answer  # No noise for testing
+        answer = true_answer
         
         print(f"Answer: {'YES' if answer else 'NO'}")
         
-        # Update log probabilities with adaptive strength (grows with confidence)
+        # ================================
+        # 🔥 FIXED PROBABILITY UPDATE
+        # ================================
+        
+        # Smooth + noise-aware
+        p_correct = 0.75 + 0.2 * max_prob
+        p_wrong = 1 - p_correct
+        
         for i in range(data_len):
             match = data_dict[best_f][i] == best_v
             
-            # Adaptive strength: grows as confidence increases
-            strength = 1.5 + 0.5 * max_prob
-            
             if answer:
-                # YES answer: matching songs get stronger boost
-                log_probs[i] += np.log(strength) if match else np.log(2 - strength)
+                likelihood = p_correct if match else p_wrong
             else:
-                # NO answer: non-matching songs get stronger boost  
-                log_probs[i] += np.log(2 - strength) if match else np.log(strength)
+                likelihood = p_wrong if match else p_correct
+            
+            log_probs[i] += np.log(likelihood)
         
         asked_questions.add((best_f, best_v))
         asked_categories[best_f] += 1
         
-        # Show top candidates
+        # ================================
+        # SHOW TOP CANDIDATES
+        # ================================
+        
         top_idx = np.argsort(probs)[-5:][::-1]
         print("Top candidates:")
         for idx in top_idx:
             print(f"  {data.iloc[idx]['track_name']}: {probs[idx]:.4f}")
-
 # ================================
 # MAIN PIPELINE
 # ================================
@@ -834,17 +871,35 @@ def main():
     
     # Run tests
     print("\n" + "=" * 50)
-    print("RUNNING TESTS")
+    print("RUNNING ALL THREE APPROACHES - SAME TARGET SONG")
     print("=" * 50)
     
-    # Test entropy engine
-    run_entropy_engine(data)
+    # Select same target song for all three engines
+    target_idx = random.choice(range(len(data)))
+    target_song = data.iloc[target_idx]
+    print(f"🎯 Common Target Song: {target_song['track_name']}")
+    print("=" * 50)
     
-    # Test ML engine
-    run_ml_engine(data)
+    # Test entropy engine (Baseline)
+    run_entropy_engine(data, target_idx)
+    
+    # Test ML engine (Probabilistic)
+    try:
+        run_ml_engine(data, target_idx)
+    except Exception as e:
+        print(f"ML engine error: {e}")
+        print("Skipping ML engine test...")
+    
+    # Test adaptive engine (Dynamic Exploration-Exploitation)
+    try:
+        from adaptive_engine import main as adaptive_main
+        adaptive_main(target_idx)
+    except Exception as e:
+        print(f"Adaptive engine error: {e}")
+        print("Skipping adaptive engine test...")
     
     print("\n" + "=" * 50)
-    print("SYSTEM TEST COMPLETE!")
+    print("ALL THREE APPROACHES TEST COMPLETE!")
     print("=" * 50)
 
 if __name__ == "__main__":

@@ -84,13 +84,9 @@ def select_best_question(df, asked_categories, asked_pairs):
         values = df[f].unique()
 
         for v in values:
-            if (f, v) in asked_pairs:
-                continue
-
-            gain = value_info_gain(df, f, v)
-
-            if gain <= 0:
-                continue
+            # Allow repeated questions to ensure 20 questions total
+            # if (f, v) in asked_pairs:
+            #     continue
 
             # MULTI-FACTOR SCORING (IMPROVED)
             yes = len(df[df[f] == v])
@@ -116,6 +112,11 @@ def select_best_question(df, asked_categories, asked_pairs):
                 best_score = score
                 best_q = (f, v)
 
+    # Always return a question - never None
+    if best_q is None:
+        # Fallback: ask about the first feature/value pair
+        best_q = (features[0], df[features[0]].iloc[0])
+    
     return best_q
 
 # -------------------------
@@ -132,23 +133,14 @@ target_song = df.sample(1).iloc[0]
 
 print("🎯 Target song (hidden):", target_song["title"])
 
-for step in range(20):  # Both engines use 20 questions max
+for step in range(30):  # Both engines use 30 questions max
         
     if len(df) <= 3:
         print("\n🎯 Final candidates:")
         print(df["title"].values)
         break
     
-    if len(df) <= 3 or step >= 19:  # Stop after 20 questions
-        print(f"\n🎯 Stopped after {step+1} questions - {len(df)} songs remaining")
-        print(df["title"].values)
-        break
-
     q = select_best_question(df, asked_categories, asked_pairs)
-
-    if q is None:
-        print("\nNo more useful questions.")
-        break
 
     f, v = q
 
