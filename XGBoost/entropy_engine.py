@@ -33,7 +33,13 @@ def extract_features(df):
 # Process data
 data = extract_features(data)
 
-features = ["genre", "mood", "tempo", "language"]  # era removed
+features = [
+        "genre", "mood", "tempo", "language", "popularity_level",
+        "duration_length", "danceability_level", "energy_level", "valence_level",
+        "acoustic_level", "instrumental_level", "liveness_level", "speechiness_level",
+        "loudness_level", "key_category", "mode_category", "time_signature_category",
+        "content_rating", "artist_type", "release_type", "track_version"
+    ]  # ALL 21 FEATURES
 
 # -------------------------
 # ENTROPY
@@ -86,10 +92,25 @@ def select_best_question(df, asked_categories, asked_pairs):
             if gain <= 0:
                 continue
 
+            # MULTI-FACTOR SCORING (IMPROVED)
+            yes = len(df[df[f] == v])
+            no = len(df[df[f] != v])
+            remaining = len(df)
+            
+            reduction = (remaining - min(yes, no)) / remaining
+            balance = min(yes, no) / remaining
+            confidence = abs(yes - no) / remaining
+            
+            target_score = (
+                0.5 * reduction +      # 50% elimination power
+                0.3 * balance +       # 30% split quality
+                0.2 * confidence      # 20% confidence level
+            )
+            
             # CATEGORY PENALTY
             penalty = 1 / (1 + asked_categories[f])
 
-            score = gain * penalty
+            score = target_score * penalty
 
             if score > best_score:
                 best_score = score
@@ -111,10 +132,15 @@ target_song = df.sample(1).iloc[0]
 
 print("🎯 Target song (hidden):", target_song["title"])
 
-for step in range(10):
-
+for step in range(20):  # Both engines use 20 questions max
+        
     if len(df) <= 3:
         print("\n🎯 Final candidates:")
+        print(df["title"].values)
+        break
+    
+    if len(df) <= 3 or step >= 19:  # Stop after 20 questions
+        print(f"\n🎯 Stopped after {step+1} questions - {len(df)} songs remaining")
         print(df["title"].values)
         break
 

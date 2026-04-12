@@ -676,15 +676,23 @@ def run_ml_engine(data):
         return pd.DataFrame([row])
     
     # Main game loop
-    for step in range(12):
+    for step in range(20):
         # Convert log probs to probs for display and calculations
         probs = np.exp(log_probs - np.max(log_probs))
         probs = probs / np.sum(probs)
         
         max_prob = np.max(probs)
         
-        if max_prob > 0.75:
-            print(f"CONFIDENT! Prediction: {data.iloc[np.argmax(probs)]['track_name']}")
+        # Stop conditions: 20 questions OR 75% confidence
+        if max_prob > 0.75 or step >= 19:
+            if max_prob > 0.75:
+                print(f"CONFIDENT! Prediction: {data.iloc[np.argmax(probs)]['track_name']}")
+            else:
+                print(f"\n🎯 Stopped after {step+1} questions - {len(df)} songs remaining")
+                print("Top candidates:")
+                top_idx = np.argsort(probs)[-5:][::-1]
+                for idx in top_idx:
+                    print(f"  {data.iloc[idx]['track_name']}: {probs[idx]:.4f}")
             break
         
         remaining = np.sum(probs > 0.01)
