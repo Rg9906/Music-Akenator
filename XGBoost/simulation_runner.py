@@ -12,6 +12,10 @@ import time
 import sys
 from music_akenator import run_entropy_engine, run_ml_engine
 from adaptive_engine import run_adaptive_engine
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.colors import LinearSegmentedColormap
+from viz_function import create_terminal_visualization
 
 class EnhancedEnginePerformanceTracker:
     """Track performance metrics with detailed per-run analysis"""
@@ -472,28 +476,25 @@ def run_enhanced_adaptive_engine(data, target_idx, run_num, tracker, noise_perce
 def print_run_comparison(run_num, entropy_result, ml_result, adaptive_result):
     """Print detailed comparison for a single run"""
     print(f"\n{'='*80}")
-    print(f"RUN {run_num} DETAILED COMPARISON")
+    print(f"RUN {run_num} - DETAILED COMPARISON")
     print(f"{'='*80}")
+    print(f"Target Song: {entropy_result['target_song']}")
     
-    print(f"\nTarget Song: {entropy_result['target_song']}")
+    # Print engine results
+    engines = [
+        ("Entropy", entropy_result),
+        ("ML", ml_result),
+        ("Adaptive", adaptive_result)
+    ]
     
-    # Create comparison table
-    print(f"\n{'Engine':<12} {'Questions':<10} {'Status':<8} {'Found Song':<30} {'Confidence':<10}")
-    print(f"{'-'*80}")
+    for engine_name, result in engines:
+        status = "CORRECT" if result['found_song'] == result['target_song'] else "WRONG"
+        print(f"Engine {engine_name}: {result['questions_asked']} questions, Status: {status}, Confidence: {result['final_probability']:.3f}")
     
-    # Entropy Engine
-    entropy_status = "CORRECT" if entropy_result['is_correct'] else "WRONG"
-    print(f"{'Entropy':<12} {entropy_result['questions_asked']:<10} {entropy_status:<8} {entropy_result['found_song'][:28]:<30} {entropy_result['final_probability']:.3f}")
-    
-    # ML Engine
-    ml_status = "CORRECT" if ml_result['is_correct'] else "WRONG"
-    print(f"{'ML':<12} {ml_result['questions_asked']:<10} {ml_status:<8} {ml_result['found_song'][:28]:<30} {ml_result['final_probability']:.3f}")
-    
-    # Adaptive Engine
-    adaptive_status = "CORRECT" if adaptive_result['is_correct'] else "WRONG"
-    print(f"{'Adaptive':<12} {adaptive_result['questions_asked']:<10} {adaptive_status:<8} {adaptive_result['found_song'][:28]:<30} {adaptive_result['final_probability']:.3f}")
-    
-    # Determine winner for this run
+    # Determine winner
+    winner = min(engines, key=lambda x: x[1]['questions_asked'] if x[1]['found_song'] == x[1]['target_song'] else float('inf'))
+    if winner[1]['found_song'] == winner[1]['target_song']:
+        print(f"WINNER: {winner[0]} Engine ({winner[1]['questions_asked']} questions)")
     winners = []
     if entropy_result['is_correct']:
         winners.append(("Entropy", entropy_result['questions_asked']))
@@ -558,6 +559,9 @@ def run_enhanced_simulations(num_simulations=10, sample_size=2000, noise_percent
         
         # Print detailed comparison for this run
         print_run_comparison(i+1, entropy_result, ml_result, adaptive_result)
+    
+    # Create terminal visualization
+    create_terminal_visualization(entropy_tracker, ml_tracker, adaptive_tracker, noise_percentage)
     
     # Print final summary
     print(f"\n{'='*80}")

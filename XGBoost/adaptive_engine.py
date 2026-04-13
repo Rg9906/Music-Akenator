@@ -82,15 +82,15 @@ def run_adaptive_engine(data, target_idx=None):
         early_stop = False
         stop_reason = ""
         
-        # Condition 1: Higher confidence threshold (more conservative)
-        if max_prob > 0.6:
+        # Condition 1: Much higher confidence threshold (very difficult to exit)
+        if max_prob > 0.85:
             early_stop = True
-            stop_reason = "Confidence threshold (0.6) reached"
+            stop_reason = "Confidence threshold (0.85) reached"
         
-        # Condition 2: Smaller gap between first and second (more strict)
-        elif len(sorted_probs) >= 2 and (sorted_probs[0] - sorted_probs[1]) > 0.12:
+        # Condition 2: Much larger gap between first and second (very strict)
+        elif len(sorted_probs) >= 2 and (sorted_probs[0] - sorted_probs[1]) > 0.25:
             early_stop = True
-            stop_reason = f"Big gap: {sorted_probs[0]:.3f} vs {sorted_probs[1]:.3f}"
+            stop_reason = f"Huge gap: {sorted_probs[0]:.3f} vs {sorted_probs[1]:.3f}"
         
         # Condition 3: Maximum questions
         elif step >= 29:
