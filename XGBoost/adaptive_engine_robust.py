@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simplified Adaptive Engine - WORKING VERSION
-Main approach with unique stopping conditions
+Robust Adaptive Engine - MAIN APPROACH
+More conservative stopping conditions and better error handling
 """
 
 import pandas as pd
@@ -9,8 +9,8 @@ import numpy as np
 import random
 
 def run_adaptive_engine(data, target_idx=None):
-    """Simplified but effective adaptive engine"""
-    print("\n=== SIMPLIFIED ADAPTIVE ENGINE ===")
+    """Robust adaptive engine with conservative stopping conditions"""
+    print("\n=== ROBUST ADAPTIVE ENGINE ===")
     
     features = [
         "genre", "mood", "tempo", "language", "popularity_level",
@@ -45,7 +45,7 @@ def run_adaptive_engine(data, target_idx=None):
         
         print(f"\nStep {step+1} | max_prob={max_prob:.4f}")
         
-        # Simple but effective question selection
+        # Conservative question selection
         best_score = -1
         best_q = None
         
@@ -60,21 +60,21 @@ def run_adaptive_engine(data, target_idx=None):
                 prob_yes = np.sum(probs[mask])
                 prob_no = 1 - prob_yes
                 
-                # Skip very imbalanced questions
-                if min(prob_yes, prob_no) < 0.05:
+                # Skip very imbalanced questions (more conservative)
+                if min(prob_yes, prob_no) < 0.1:  # Increased threshold
                     continue
                 
-                # Adaptive scoring: balance + exploration bonus
+                # Robust scoring
                 balance = 1 - abs(prob_yes - prob_no)
-                
-                # Exploration bonus for unused features
-                exploration_bonus = 1.0 / (1 + 0.2 * feature_usage[f])
                 
                 # Information gain
                 info_gain = -prob_yes * np.log2(prob_yes + 1e-9) - prob_no * np.log2(prob_no + 1e-9)
                 
+                # Exploration bonus for unused features
+                exploration_bonus = 1.0 / (1 + 0.3 * feature_usage[f])
+                
                 # Combined score
-                score = 0.5 * balance + 0.3 * info_gain + 0.2 * exploration_bonus
+                score = 0.6 * balance + 0.3 * info_gain + 0.1 * exploration_bonus
                 
                 if score > best_score:
                     best_score = score
@@ -84,24 +84,30 @@ def run_adaptive_engine(data, target_idx=None):
         f, v = best_q
         print(f"Q{step+1}: Is {f} = {v}?")
         
+        # Get correct answer
         answer = (data_dict[f][target_idx] == v)
         print("Answer:", "YES" if answer else "NO")
         
-        # Update probabilities (fixed logic)
-        p_correct = 0.75 + 0.2 * max_prob
-        p_wrong = 1 - p_correct
-        
-        mask = (data_dict[f] == v)
-        
-        for i in range(N):
-            match = mask[i]
+        # Robust probability update
+        try:
+            p_correct = 0.75 + 0.2 * max_prob
+            p_wrong = 1 - p_correct
             
-            if answer:
-                likelihood = p_correct if match else p_wrong
-            else:
-                likelihood = p_wrong if match else p_correct
+            mask = (data_dict[f] == v)
             
-            log_probs[i] += np.log(likelihood)
+            for i in range(N):
+                match = mask[i]
+                
+                if answer:
+                    likelihood = p_correct if match else p_wrong
+                else:
+                    likelihood = p_wrong if match else p_correct
+                
+                log_probs[i] += np.log(likelihood)
+            
+        except Exception as e:
+            print(f"Warning: Probability update error: {e}")
+            continue  # Continue with next question
         
         asked.add((f, v))
         feature_usage[f] += 1
@@ -114,13 +120,20 @@ def run_adaptive_engine(data, target_idx=None):
         for idx in top_idx:
             print(f"  {data.iloc[idx]['track_name']} -> {probs[idx]:.4f}")
         
-        # UNIQUE STOPPING CONDITIONS (different from ML engine)
-        if max_prob > 0.5:  # Higher confidence than ML engine
-            print("\nAdaptive confidence threshold (0.5) reached")
+        # MORE CONSERVATIVE STOPPING CONDITIONS
+        # Condition 1: Higher confidence threshold (more conservative)
+        if max_prob > 0.6:  # Increased from 0.5
+            print("\nRobust confidence threshold (0.6) reached")
             break
         
-        elif len(sorted_probs) >= 2 and (sorted_probs[0] - sorted_probs[1]) > 0.15:  # 15% absolute gap
-            print(f"\nAdaptive gap: {sorted_probs[0]:.3f} vs {sorted_probs[1]:.3f}")
+        # Condition 2: Larger gap detection (more conservative)
+        elif len(sorted_probs) >= 2 and (sorted_probs[0] - sorted_probs[1]) > 0.2:  # Increased from 0.15
+            print(f"\nRobust gap: {sorted_probs[0]:.3f} vs {sorted_probs[1]:.3f}")
+            break
+        
+        # Condition 3: Safety net - stop if probabilities are too low
+        elif max_prob < 0.001:  # Added safety condition
+            print("\nProbabilities too low - stopping to avoid errors")
             break
 
 def main():
