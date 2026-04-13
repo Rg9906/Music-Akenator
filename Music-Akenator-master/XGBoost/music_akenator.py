@@ -927,8 +927,8 @@ def main():
     
     # Test adaptive engine (Dynamic Exploration-Exploitation)
     try:
-        from adaptive_engine import run_adaptive_engine
-        run_adaptive_engine(data, target_idx)
+        from adaptive_engine import main as adaptive_main
+        adaptive_main(target_idx)
     except Exception as e:
         print(f"Adaptive engine error: {e}")
         print("Skipping adaptive engine test...")
