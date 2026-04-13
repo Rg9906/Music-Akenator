@@ -728,13 +728,13 @@ def run_ml_engine(data, target_idx=None):
         early_stop = False
         stop_reason = ""
         
-        # Condition 1: Confidence threshold
-        if max_prob > 0.4:
+        # Condition 1: Higher confidence threshold (more conservative)
+        if max_prob > 0.6:
             early_stop = True
-            stop_reason = "Confidence threshold (0.4) reached"
+            stop_reason = "Confidence threshold (0.6) reached"
         
-        # Condition 2: Big gap between first and second
-        elif len(sorted_probs) >= 2 and sorted_probs[0] > 2 * sorted_probs[1]:
+        # Condition 2: Smaller gap between first and second (more strict)
+        elif len(sorted_probs) >= 2 and (sorted_probs[0] - sorted_probs[1]) > 0.12:
             early_stop = True
             stop_reason = f"Big gap: {sorted_probs[0]:.3f} vs {sorted_probs[1]:.3f}"
         
@@ -909,32 +909,33 @@ def main():
     print("RUNNING ALL THREE APPROACHES - SAME TARGET SONG")
     print("=" * 50)
     
-    # Select same target song for all three engines
-    target_idx = random.choice(range(len(data)))
-    target_song = data.iloc[target_idx]
-    print(f"🎯 Common Target Song: {target_song['track_name']}")
+    # Sample dataset for performance optimization (2000 songs instead of 70k)
+    sample_data = data.sample(n=2000).reset_index(drop=True)
+    target_idx = random.choice(range(len(sample_data)))
+    target_song = sample_data.iloc[target_idx]['track_name']
+    print(f" Common Target Song: {target_song}")
+    print(f" Using Sample: {len(sample_data):,} songs (from {len(data):,} total)")
     print("=" * 50)
     
-    # Test entropy engine (Baseline)
-    run_entropy_engine(data, target_idx)
+    # Test all three engines on sample
+    run_entropy_engine(sample_data, target_idx)
     
-    # Test ML engine (Probabilistic)
     try:
-        run_ml_engine(data, target_idx)
+        run_ml_engine(sample_data, target_idx)
     except Exception as e:
         print(f"ML engine error: {e}")
         print("Skipping ML engine test...")
     
-    # Test adaptive engine (Dynamic Exploration-Exploitation)
     try:
         from adaptive_engine import run_adaptive_engine
-        run_adaptive_engine(data, target_idx)
+        run_adaptive_engine(sample_data, target_idx)
     except Exception as e:
         print(f"Adaptive engine error: {e}")
         print("Skipping adaptive engine test...")
     
     print("\n" + "=" * 50)
     print("ALL THREE APPROACHES TEST COMPLETE!")
+    print(f" PERFORMANCE: Used {len(sample_data):,} songs instead of {len(data):,} total")
     print("=" * 50)
 
 if __name__ == "__main__":
